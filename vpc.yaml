@@ -13,6 +13,31 @@ Metadata:
           - PJPrefix
 
 Parameters:
+  AppServiceName:
+    Description: Please enter the service name will be provided to the customer.
+    Type: String
+    Default: YourApp
+
+  EnvName:
+    Description: Please select the environment you want to create. Besides, its name will be prefixed to all resources' name.
+    Type: String
+    AllowedValues:
+      - dev
+      - stg
+      - prd
+
+  Route53BaseDomain:
+    Type: String
+    Default: com
+
+  RevisionNumber:
+    Description: The revision number of this template consists of 3 parts.
+    Type: String
+    Default: 0.2.0
+
+  PJPrefix:
+    Type: String
+
   VpcCIDR:
     Description: Please enter the IP range (CIDR notation) for this VPC
     Type: String
@@ -38,12 +63,13 @@ Parameters:
     Type: String
     Default: 10.192.21.0/24
 
-  PJPrefix:
-    Type: String
-
   KeyName:
     Description: The EC2 Key Pair to allow SSH access to the instance
     Type: "AWS::EC2::KeyPair::KeyName"
+
+Conditions:
+  isPrdEnv: !Equals [ !Ref EnvName, "prd" ]
+  isNotPrdEnv: !Not [Condition: isPrdEnv]
 
 Resources:
 # ------------------------------------------------------------#
@@ -58,14 +84,16 @@ Resources:
       InstanceTenancy: default
       Tags: 
         - Key: Name
-          Value: !Sub "${PJPrefix}-vpc"
+          Value: !Sub "${EnvName}-${PJPrefix}-vpc"
+        - Key: Env
+          Value: !Ref EnvName          
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
         - Key: Name
-          Value: !Sub "${PJPrefix}-igw"
+          Value: !Sub "${EnvName}-${PJPrefix}-igw"
 
   InternetGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -83,6 +111,8 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub "${PJPrefix}-Public Subnet (AZ1)"
+        - Key: Env
+          Value: !Ref EnvName
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
@@ -93,7 +123,9 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: !Sub "${PJPrefix}-Public Subnet (AZ2)"
+          Value: !Sub "${EnvName}-${PJPrefix}-Public Subnet (AZ2)"
+        - Key: Env
+          Value: !Ref EnvName
 
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
@@ -104,7 +136,9 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: !Sub "${PJPrefix}-Private Subnet (AZ1)"
+          Value: !Sub "${EnvName}-${PJPrefix}-Private Subnet (AZ1)"
+        - Key: Env
+          Value: !Ref EnvName
 
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
@@ -115,7 +149,9 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: !Sub "${PJPrefix}-Private Subnet (AZ2)"
+          Value: !Sub "${EnvName}-${PJPrefix}-Private Subnet (AZ2)"
+        - Key: Env
+          Value: !Ref EnvName
 
   NatGateway1EIP:
     Type: AWS::EC2::EIP
@@ -136,7 +172,9 @@ Resources:
       SubnetId: !Ref PublicSubnet1
       Tags:
         - Key: Name
-          Value: !Sub "${PJPrefix}-NAT1"
+          Value: !Sub "${EnvName}-${PJPrefix}-NAT1"
+        - Key: Env
+          Value: !Ref EnvName
 
   NatGateway2:
     Type: AWS::EC2::NatGateway
@@ -145,7 +183,9 @@ Resources:
       SubnetId: !Ref PublicSubnet2
       Tags:
         - Key: Name
-          Value: !Sub "${PJPrefix}-NAT2"
+          Value: !Sub "${EnvName}-${PJPrefix}-NAT2"
+        - Key: Env
+          Value: !Ref EnvName
 
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
@@ -153,7 +193,9 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: !Sub "${PJPrefix}-Public Routes"
+          Value: !Sub "${EnvName}-${PJPrefix}-Public Routes"
+        - Key: Env
+          Value: !Ref EnvName
 
   DefaultPublicRoute:
     Type: AWS::EC2::Route
@@ -182,7 +224,9 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: !Sub "${PJPrefix}-Private Routes (AZ1)"
+          Value: !Sub "${EnvName}-${PJPrefix}-Private Routes (AZ1)"
+        - Key: Env
+          Value: !Ref EnvName
 
   DefaultPrivateRoute1:
     Type: AWS::EC2::Route
@@ -203,7 +247,9 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: !Sub "${PJPrefix}-Private Routes (AZ2)"
+          Value: !Sub "${EnvName}-${PJPrefix}-Private Routes (AZ2)"
+        - Key: Env
+          Value: !Ref EnvName
 
   DefaultPrivateRoute2:
     Type: AWS::EC2::Route
@@ -239,7 +285,9 @@ Resources:
         sudo yum install -y git
       Tags:
           - Key: Name
-            Value: !Sub "${PJPrefix}-ec2"
+            Value: !Sub "${EnvName}-${PJPrefix}-ec2"
+          - Key: Env
+            Value: !Ref EnvName
 
 # ------------------------------------------------------------#
 #  ALB
@@ -249,7 +297,7 @@ Resources:
     Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
     Properties: 
       VpcId: !Ref VPC
-      Name: !Sub "${PJPrefix}-tg"
+      Name: !Sub "${EnvName}-${PJPrefix}-tg"
       Protocol: HTTP
       Port: 80
       HealthCheckProtocol: HTTP
@@ -266,7 +314,7 @@ Resources:
           Port: 80
       Tags: 
         - Key: Name
-          Value: !Sub "${PJPrefix}-tg"
+          Value: !Sub "${EnvName}-${PJPrefix}-tg"
   
   ALBListener: 
     Type: "AWS::ElasticLoadBalancingV2::Listener"
@@ -281,10 +329,10 @@ Resources:
   InternetALB:
     Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
     Properties: 
-      Name: !Sub "${PJPrefix}-alb"
+      Name: !Sub "${EnvName}-${PJPrefix}-alb"
       Tags: 
         - Key: Name
-          Value: !Sub "${PJPrefix}-alb"
+          Value: !Sub "${EnvName}-${PJPrefix}-alb"
       Scheme: "internet-facing"
       LoadBalancerAttributes:
         - Key: "deletion_protection.enabled"
@@ -296,6 +344,33 @@ Resources:
       Subnets: 
         - !Ref PublicSubnet1
         - !Ref PublicSubnet2
+
+# ------------------------------------------------------------#
+#  Route53
+# ------------------------------------------------------------#
+  Route53HostedZone:
+    Type: "AWS::Route53::HostedZone"
+    Condition: isNotPrdEnv
+    Properties:
+      Name: !Sub ${EnvName}-${PJPrefix}.${Route53BaseDomain}
+      HostedZoneTags:
+        - Key: Name
+          Value: !Sub ${EnvName}-${PJPrefix}-Route53HostedZone
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: AppService
+          Value: !Ref AppServiceName
+
+#  Route53DelegationInParent:
+#    Type: "AWS::Route53::RecordSet"
+#    Condition: isNotPrdEnv
+#    Properties:
+#      HostedZoneName: !Sub ${EnvName}-${PJPrefix}.${Route53BaseDomain}
+#      Name: !Sub ${EnvName}-${PJPrefix}-.${Route53BaseDomain}
+#      Type: NS
+#      ResourceRecords:
+#        !GetAtt Route53HostedZone.NameServers
+#      TTL: "172800"
 
 # ------------------------------------------------------------#
 #  Security Group
@@ -318,13 +393,13 @@ Resources:
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
-          Value: !Sub "${PJPrefix}-web-server-sg"
+          Value: !Sub "${EnvName}-${PJPrefix}-web-server-sg"
   
   ALBSecurityGroup:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
       VpcId: !Ref VPC
-      GroupName: !Sub "${PJPrefix}-alb-sg"
+      GroupName: !Sub "${EnvName}-${PJPrefix}-alb-sg"
       GroupDescription: "-"
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -333,7 +408,7 @@ Resources:
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: "Name"
-          Value: !Sub "${PJPrefix}-alb-sg"
+          Value: !Sub "${EnvName}-${PJPrefix}-alb-sg"
 
 Outputs:
   VPC:
